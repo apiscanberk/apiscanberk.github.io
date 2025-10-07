@@ -1,356 +1,813 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Özmert Adana E5 Haritacılık (Gelişmiş)</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen/dist/leaflet.fullscreen.css" />
-    <style>
-        :root {
-            --brand-color: #0078d4; --success-color: #107c10; --danger-color: #d13438;
-            --light-grey: #f0f0f0; --white: #fff; --shadow: 0 -2px 8px rgba(0,0,0,0.15);
-        }
-        body, html { 
-            margin: 0; padding: 0; height: 100%; width: 100%;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
-            overflow: hidden; 
-        }
-        #map {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 155px; /* Alt panelin yüksekliği kadar boşluk bırak */
-            background: #e9e9e9;
-            cursor: crosshair;
-        }
-        #bottom-panel {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 155px; /* Sabit yükseklik */
-            background-color: var(--light-grey);
-            box-shadow: var(--shadow);
-            border-top: 1px solid #ccc;
-            display: flex;
-            flex-direction: column;
-        }
-        #info-container {
-            display: flex; justify-content: space-around;
-            gap: 10px; padding: 10px; text-align: center;
-        }
-        .info-box {
-            background-color: var(--white); border-radius: 8px;
-            padding: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            flex: 1;
-        }
-        .info-box .label { font-size: 0.9em; color: #555; font-weight: 600; }
-        .info-box .value { 
-            color: var(--brand-color); font-size: 1.6em; 
-            margin-top: 5px; font-weight: 700;
-        }
-        .info-box .value.error { color: var(--danger-color); }
-        #controls-container {
-            display: flex; align-items: stretch;
-            padding: 10px; gap: 10px; border-top: 1px solid #ddd;
-            flex-shrink: 0;
-        }
-        .control-group { flex-grow: 1; display: flex; gap: 5px; }
-        .control-input {
-            width: 100%; border: 1px solid #ccc; border-radius: 8px; 
-            padding: 12px; font-size: 1.1em; text-align: center;
-        }
-        #gpsButton, .control-button {
-            padding: 0 20px; font-size: 1.1em; font-weight: bold; color: white;
-            border: none; border-radius: 8px; cursor: pointer;
-        }
-        #goToKmBtn { background-color: var(--brand-color); }
-        #gpsButton { background-color: var(--success-color); }
-        #gpsButton:disabled { background-color: #6c757d; cursor: not-allowed; }
-        
-        #crosshair-info {
-            position: absolute; top: 10px; left: 50%;
-            transform: translateX(-50%); background-color: rgba(43, 43, 43, 0.85);
-            color: white; padding: 8px 15px; border-radius: 8px;
-            font-size: 1em; font-weight: 600; z-index: 1001;
-            pointer-events: none; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        #follow-toggle {
-            position: absolute; bottom: 165px; right: 10px; z-index: 1000; 
-            background: var(--white); border: 2px solid rgba(0,0,0,0.2);
-            border-radius: 50%; width: 40px; height: 40px; font-size: 1.8em;
-            cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex;
-            align-items: center; justify-content: center;
-        }
-        #follow-toggle.active { background-color: var(--brand-color); color: var(--white); }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Özmert E5 Harita Pro — Mobil & Sahaya Özel</title>
+
+<!-- Leaflet + Fullscreen + proj4 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen/dist/leaflet.fullscreen.css" />
+<style>
+  :root{
+    --bg:#f6f8fa; --card:#fff; --accent:#0078d4; --success:#107c10; --danger:#d13438;
+    --glass: rgba(255,255,255,0.85);
+  }
+  html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{background:var(--bg);overflow:hidden;-webkit-tap-highlight-color:transparent;}
+  #map{position:absolute;inset:0 0 170px 0;touch-action:pan-y;cursor:crosshair}
+  /* Bottom panel (slide-up mobile) */
+  #panel{position:fixed;left:0;right:0;bottom:0;height:170px;background:var(--card);box-shadow:0 -8px 30px rgba(0,0,0,0.12);border-top-left-radius:12px;border-top-right-radius:12px;display:flex;flex-direction:column;transition:transform .25s;transform:translateY(0);}
+  #panel.collapsed{transform:translateY(140px);}
+  #panel .handle{width:60px;height:6px;background:#ddd;border-radius:10px;margin:8px auto;}
+  .infos{display:flex;gap:8px;padding:8px 12px;flex:1;align-items:center;}
+  .info{flex:1;background:var(--glass);border-radius:10px;padding:8px 10px;text-align:center;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+  .info .label{font-weight:600;color:#444;font-size:12px}
+  .info .value{font-size:18px;color:var(--accent);margin-top:6px;display:block}
+  .controls{display:flex;gap:8px;padding:8px 12px;align-items:center}
+  .input{flex:1;padding:10px;border-radius:10px;border:1px solid #ddd;font-size:16px;text-align:center}
+  .btn{padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-weight:700;font-size:15px;min-width:64px}
+  .btn.ghost{background:#fff;color:var(--accent);border:1px solid #ddd}
+  /* Floating action buttons (mobile) */
+  .fab{position:fixed;right:12px;bottom:200px;display:flex;flex-direction:column;gap:10px;z-index:1200}
+  .fab button{width:56px;height:56px;border-radius:50%;border:none;background:var(--card);box-shadow:0 6px 18px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:22px}
+  .fab .primary{background:var(--accent);color:#fff}
+  .topbar{position:fixed;left:12px;top:10px;z-index:1200;display:flex;gap:8px;align-items:center}
+  .small{padding:8px 10px;border-radius:10px;border:none;background:var(--card);box-shadow:0 4px 12px rgba(0,0,0,0.06)}
+  #crosshair-info{position:fixed;left:50%;transform:translateX(-50%);top:12px;background:rgba(0,0,0,0.7);color:#fff;padding:8px 12px;border-radius:10px;font-weight:700;display:none;z-index:1201}
+  /* Modal & lists */
+  .drawer{position:fixed;left:10px;right:10px;top:60px;bottom:200px;background:var(--card);z-index:1300;border-radius:12px;padding:12px;box-shadow:0 12px 40px rgba(0,0,0,0.2);overflow:auto;display:none}
+  .drawer.open{display:block}
+  .list-item{padding:10px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center}
+  .muted{color:#666;font-size:13px}
+  /* Night mode */
+  body.night{background:#071428}
+  body.night .info .value{color:#7ad1ff}
+  body.night .info{background:rgba(0,0,0,0.4);color:#eee}
+  body.night .btn{background:#0b72b8}
+  /* Responsive tweaks */
+  @media (max-width:420px){ .info .value{font-size:16px} .btn{padding:10px 12px} .input{font-size:14px} #map{bottom:160px} .fab{right:8px;bottom:180px} }
+</style>
 </head>
 <body>
-    <div id="map"></div>
-    <div id="crosshair-info"></div>
-    <div id="bottom-panel">
-        <div id="info-container">
-            <div class="info-box">
-                <div class="label">Kilometre</div>
-                <span class="value" id="kilometre">--.--</span>
-            </div>
-             <div class="info-box">
-                <div class="label">Ofset</div>
-                <span class="value" id="ofset">--.--</span>
-            </div>
-        </div>
-        <div id="controls-container">
-            <div class="control-group">
-                <input type="number" id="km-input" class="control-input" placeholder="KM'ye Git (Örn: 22.5)">
-                <button id="goToKmBtn" class="control-button">Git</button>
-            </div>
-            <button id="gpsButton" disabled>Yükleniyor...</button>
-        </div>
+
+<div id="map"></div>
+
+<!-- Crosshair popup -->
+<div id="crosshair-info">KM: -- | Ofset: --</div>
+
+<!-- Top quick controls -->
+<div class="topbar">
+  <button id="btnLoadXML" class="small" title="XML yükle">XML</button>
+  <input id="xmlFile" type="file" accept=".xml" style="display:none" />
+  <button id="btnRoutes" class="small" title="Yüklü güzergahlar">Güzergahlar</button>
+  <button id="btnPoints" class="small" title="Kaydedilen noktalar">Noktalar</button>
+  <button id="btnTheme" class="small" title="Gece modu">🌙</button>
+</div>
+
+<!-- Floating action buttons -->
+<div class="fab">
+  <button id="followToggle" title="Otomatik Takip" class="primary">🎯</button>
+  <button id="addPointBtn" title="Nokta Ekle">📍</button>
+  <button id="measureBtn" title="Ölçüm">📏</button>
+</div>
+
+<!-- Slide-up bottom panel -->
+<div id="panel" class="">
+  <div class="handle" id="panelHandle"></div>
+  <div class="infos">
+    <div class="info">
+      <div class="label">Kilometre</div>
+      <span class="value" id="kilometre">--.--</span>
     </div>
-    <div id="follow-toggle" class="active" title="Otomatik Takip">🎯</div>
+    <div class="info">
+      <div class="label">Ofset</div>
+      <span class="value" id="ofset">--.--</span>
+    </div>
+    <div class="info">
+      <div class="label">Hız</div>
+      <span class="value" id="speed">--</span>
+    </div>
+    <div class="info">
+      <div class="label">Yükseklik</div>
+      <span class="value" id="alt">--</span>
+    </div>
+  </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.fullscreen/dist/Leaflet.fullscreen.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.7.5/proj4.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', async function() {
-            // DEĞİŞKENLER
-            const map = L.map('map', { fullscreenControl: true, contextmenu: true }).setView([37.0, 35.3], 13);
-            const kilometreElement = document.getElementById('kilometre'), ofsetElement = document.getElementById('ofset');
-            const gpsButton = document.getElementById('gpsButton'), kmInput = document.getElementById('km-input'), goToKmBtn = document.getElementById('goToKmBtn');
-            const crosshairInfo = document.getElementById('crosshair-info');
-            const followToggle = document.getElementById('follow-toggle');
-            let userMarker, routePolyline, startStation, manualMarker, gpsWatcherId, crosshairLine;
-            let isAppReady = false; // Güvenlik kilidi
-            let isFollowing = true; // Otomatik takip durumu
+  <div class="controls">
+    <input id="kmInput" class="input" placeholder="KM'ye Git (örn: 22.5 veya 22500)" inputmode="decimal" />
+    <button id="goToKmBtn" class="btn">Git</button>
+    <button id="gpsBtn" class="btn ghost" disabled>Yükleniyor...</button>
+  </div>
+</div>
 
-            // HARİTA KATMANLARI
-            const baseLayers = {
-                "Sokak": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map),
-                "Uydu": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' })
-            };
-            L.control.layers(baseLayers).addTo(map);
-            
-            proj4.defs("EPSG:5258", "+proj=tmerc +lat_0=0 +lon_0=36 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+<!-- Drawers -->
+<div id="drawerRoutes" class="drawer"></div>
+<div id="drawerPoints" class="drawer"></div>
 
-            async function initialize() {
-                try {
-                    const response = await fetch('ADANA-CEYHAN_REV1.xml');
-                    if (!response.ok) throw new Error('XML dosyası bulunamadı!');
-                    const xmlText = await response.text();
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                    
-                    const alignment = xmlDoc.querySelector('Alignment');
-                    if (!alignment) throw new Error('XML dosyasında güzergah bilgisi (Alignment) bulunamadı.');
-                    startStation = parseFloat(alignment.getAttribute('staStart'));
-                    
-                    let routePoints = [];
-                    for (const element of alignment.querySelector('CoordGeom').children) {
-                        routePoints.push(...parseElement(element));
-                    }
-                    routePolyline = L.polyline(routePoints, { color: 'red', weight: 5 }).addTo(map);
-                    map.fitBounds(routePolyline.getBounds());
-                    
-                    gpsButton.addEventListener('click', toggleGps);
-                    goToKmBtn.addEventListener('click', goToKm);
-                    followToggle.addEventListener('click', toggleFollow);
-                    map.on('mousemove', onMapMouseMove);
-                    map.on('mouseout', () => { crosshairInfo.style.display = 'none'; if(crosshairLine) map.removeLayer(crosshairLine); });
+<!-- Hidden inputs for point adding -->
+<input id="pointPhoto" type="file" accept="image/*" capture="environment" style="display:none" />
 
-                    isAppReady = true; 
-                    gpsButton.disabled = false;
-                    gpsButton.textContent = "Başlat";
-                } catch (error) {
-                    alert(`Kritik Hata: ${error.message}`);
-                    gpsButton.textContent = "Hata!";
-                }
-            }
+<!-- Libraries -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.fullscreen/dist/Leaflet.fullscreen.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.7.5/proj4.js"></script>
 
-            function toggleGps() {
-                if (!isAppReady) return;
-                if (gpsWatcherId) {
-                    navigator.geolocation.clearWatch(gpsWatcherId);
-                    gpsWatcherId = null;
-                    gpsButton.textContent = "Başlat";
-                    gpsButton.style.backgroundColor = 'var(--success-color)';
-                } else {
-                    startGpsTracking();
-                }
-            }
+<script>
+/*
+  Özmert E5 Harita Pro
+  Tam özellikli, mobil öncelikli tek dosya uygulama.
+  - Güzergah XML yükleme (multiple)
+  - KM/Ofset hesaplama
+  - GPS takip, hız, yükseklik, yön
+  - Nokta kaydetme + fotoğraf (localStorage)
+  - Ölçüm modu (mesafe / alan)
+  - Gece modu + responsive UI
+  - İçe/dışa aktarma: JSON/CSV/GPX
+*/
 
-            function startGpsTracking() {
-                if (!navigator.geolocation) { alert("GPS Desteklenmiyor"); return; }
-                gpsButton.textContent = "Bağlanılıyor...";
-                gpsButton.disabled = true;
+/* ========== Başlangıç: değişkenler & harita ========== */
+const map = L.map('map', { fullscreenControl: true, zoomControl:true }).setView([37.0,35.3], 13);
+const baseStreet = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OSM'}).addTo(map);
+const baseSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19, attribution:'© Esri'});
+const layerControl = L.control.layers({Sokak:baseStreet, Uydu:baseSat}).addTo(map);
 
-                gpsWatcherId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        gpsButton.textContent = "Durdur";
-                        gpsButton.disabled = false;
-                        gpsButton.style.backgroundColor = 'var(--danger-color)';
-                        
-                        const userLatLng = L.latLng(position.coords.latitude, position.coords.longitude);
-                        
-                        if (!userMarker) {
-                            userMarker = L.circleMarker(userLatLng, { radius: 8, color: 'blue', fillColor: '#3388ff', fillOpacity: 0.8 }).addTo(map);
-                        } else {
-                            userMarker.setLatLng(userLatLng);
-                        }
-                        if (isFollowing) {
-                            map.setView(userLatLng, 18);
-                        }
-                        updateCalculations(userLatLng);
-                    }, 
-                    (error) => {
-                        alert("GPS sinyali alınamadı veya izin reddedildi.");
-                        toggleGps();
-                    }, 
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            }
+// Proj
+proj4.defs("EPSG:5258", "+proj=tmerc +lat_0=0 +lon_0=36 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs");
 
-            function updateCalculations(userLatLng) {
-                if (!isAppReady || !routePolyline || !userLatLng) return;
+/* Uygulama durumu */
+let isAppReady = false;
+let routeLayers = []; // {name, polyline, visible}
+let startStation = 0;
+let follow = true;
+let gpsWatcher = null;
+let userMarker = null;
+let prevPosition = null; // hız/yön hesaplama fallback
+let lastRoutePoints = []; // kalan route noktaları (son yüklenen route için)
+let crosshairLine = null;
+let measureMode = null; // 'distance' veya 'area' veya null
+let measureLayer = null;
+let measurePoints = [];
 
-                kilometreElement.classList.remove('error');
-                const closest = findClosestPointOnPolyline(userLatLng, routePolyline);
-                
-                if (!closest || closest.point === null || closest.segmentIndex < 0) {
-                    kilometreElement.textContent = "Güzergah Dışı";
-                    ofsetElement.textContent = "--.--";
-                    kilometreElement.classList.add('error');
-                    return;
-                }
+/* DOM */
+const kmEl = document.getElementById('kilometre');
+const ofsEl = document.getElementById('ofset');
+const spEl = document.getElementById('speed');
+const altEl = document.getElementById('alt');
+const gpsBtn = document.getElementById('gpsBtn');
+const goToKmBtn = document.getElementById('goToKmBtn');
+const kmInput = document.getElementById('kmInput');
+const followToggle = document.getElementById('followToggle');
+const addPointBtn = document.getElementById('addPointBtn');
+const measureBtn = document.getElementById('measureBtn');
+const panel = document.getElementById('panel');
+const panelHandle = document.getElementById('panelHandle');
+const btnLoadXML = document.getElementById('btnLoadXML');
+const xmlFile = document.getElementById('xmlFile');
+const drawerRoutes = document.getElementById('drawerRoutes');
+const drawerPoints = document.getElementById('drawerPoints');
+const btnRoutes = document.getElementById('btnRoutes');
+const btnPoints = document.getElementById('btnPoints');
+const pointPhoto = document.getElementById('pointPhoto');
+const btnTheme = document.getElementById('btnTheme');
+const crossInfo = document.getElementById('crosshair-info');
+const btnPointsList = document.getElementById('btnPoints');
 
-                const distance = calculateDistanceAlongPolyline(closest, routePolyline);
-                if (isNaN(distance)) {
-                    kilometreElement.textContent = "Hesaplanamadı";
-                    kilometreElement.classList.add('error');
-                    return;
-                }
-                
-                const currentKm = startStation + distance;
-                kilometreElement.textContent = `${(currentKm / 1000).toFixed(3)}`;
-                ofsetElement.textContent = `${closest.direction} ${closest.offset.toFixed(1)}m`;
-            }
+/* localStorage anahtarları */
+const LS_POINTS = 'ozmert_points_v1';
+const LS_ROUTES = 'ozmert_routes_v1'; // saklanan route metadata (geo)
+loadSavedState();
 
-            function onMapMouseMove(e) {
-                if (!isAppReady) return;
-                try {
-                    const closest = findClosestPointOnPolyline(e.latlng, routePolyline);
-                    if (!closest || closest.point === null) {
-                        crosshairInfo.style.display = 'none';
-                        if (crosshairLine) map.removeLayer(crosshairLine);
-                        return;
-                    }
-                    const km = startStation + calculateDistanceAlongPolyline(closest, routePolyline);
-                    
-                    crosshairInfo.style.display = 'block';
-                    crosshairInfo.innerHTML = `KM: ${(km / 1000).toFixed(3)} | Ofset: ${closest.direction} ${closest.offset.toFixed(1)}m`;
-                    
-                    if (crosshairLine) map.removeLayer(crosshairLine);
-                    crosshairLine = L.polyline([e.latlng, closest.point], { color: 'black', weight: 1, dashArray: '5, 5' }).addTo(map);
-                } catch(e) {/* Hata gösterme */}
-            }
-            
-            function toggleFollow() {
-                isFollowing = !isFollowing;
-                followToggle.classList.toggle('active', isFollowing);
-            }
+/* Touch: panel sürükleme */
+let startY = null, startTranslate = 0;
+panelHandle.addEventListener('touchstart', (e)=> { startY = e.touches[0].clientY; });
+panelHandle.addEventListener('touchmove', (e)=> {
+  if (startY===null) return;
+  const dy = e.touches[0].clientY - startY;
+  // yukarı çekince collapse
+  if (dy > 80) panel.classList.add('collapsed');
+  if (dy < -20) panel.classList.remove('collapsed');
+});
+panelHandle.addEventListener('touchend', ()=> startY = null);
 
-            // Gerekli yardımcı fonksiyonlar...
-            function findClosestPointOnPolyline(latlng, polyline) {
-                const latLngs = polyline.getLatLngs();
-                if (!latLngs || latLngs.length < 2) return { point: null, segmentIndex: -1 };
-                let minDistance = Infinity;
-                let closestResult = { point: null, segmentIndex: -1 };
-                for (let i = 0; i < latLngs.length - 1; i++) {
-                    const p1 = latLngs[i], p2 = latLngs[i+1];
-                    const dx = p2.lng - p1.lng, dy = p2.lat - p1.lat;
-                    if (dx === 0 && dy === 0) continue;
-                    const t = ((latlng.lng - p1.lng) * dx + (latlng.lat - p1.lat) * dy) / (dx * dx + dy * dy);
-                    let closestPointOnSegment = (t < 0) ? p1 : (t > 1) ? p2 : L.latLng(p1.lat + t * dy, p1.lng + t * dx);
-                    const dist = latlng.distanceTo(closestPointOnSegment);
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                        const crossProduct = (p2.lng - p1.lng) * (latlng.lat - p1.lat) - (p2.lat - p1.lat) * (latlng.lng - p1.lng);
-                        closestResult = { 
-                            point: closestPointOnSegment, segmentIndex: i, 
-                            offset: minDistance, 
-                            direction: Math.abs(crossProduct) < 1e-9 ? 'Üzerinde' : crossProduct > 0 ? 'Sağ' : 'Sol' 
-                        };
-                    }
-                }
-                return closestResult;
-            }
+/* ========== Yardımcı fonksiyonlar ========== */
 
-            function calculateDistanceAlongPolyline({ point, segmentIndex }, polyline) {
-                if (!point || typeof segmentIndex !== 'number' || segmentIndex < 0) return NaN;
-                let distance = 0;
-                const latLngs = polyline.getLatLngs();
-                for (let i = 0; i < segmentIndex; i++) {
-                    distance += latLngs[i].distanceTo(latLngs[i+1]);
-                }
-                distance += latLngs[segmentIndex].distanceTo(point);
-                return distance;
-            }
+function toast(msg){ alert(msg); } // basit. İstenirse fancier yapılır.
 
-            function goToKm() {
-                if (!isAppReady) return;
-                const kmValue = parseFloat(kmInput.value);
-                if (isNaN(kmValue)) return;
-                const km = kmValue * 1000;
-                if(manualMarker) map.removeLayer(manualMarker);
-                let distance = 0;
-                const latLngs = routePolyline.getLatLngs();
-                for (let i = 0; i < latLngs.length - 1; i++) {
-                    const p1 = latLngs[i], p2 = latLngs[i+1];
-                    const segmentDist = p1.distanceTo(p2);
-                    if (distance + segmentDist >= (km - startStation)) {
-                        const ratio = (km - startStation - distance) / segmentDist;
-                        const targetLat = p1.lat + ratio * (p2.lat - p1.lat);
-                        const targetLng = p1.lng + ratio * (p2.lng - p1.lng);
-                        const targetPoint = L.latLng(targetLat, tLng);
-                        manualMarker = L.marker(targetPoint).addTo(map).bindPopup(`KM: ${kmValue.toFixed(3)}`).openPopup();
-                        map.setView(targetPoint, 18);
-                        return;
-                    }
-                    distance += segmentDist;
-                }
-                alert("Girilen KM güzergah dışında!");
-            }
+function savePoints(points){
+  try { localStorage.setItem(LS_POINTS, JSON.stringify(points||[])); } catch(e){ console.error(e); }
+}
+function loadPoints(){ try { return JSON.parse(localStorage.getItem(LS_POINTS) || '[]'); } catch(e){return [];} }
 
-            function parseElement(element) {
-                let p = [];
-                if (element.tagName === 'Line') {
-                    const s = element.querySelector('Start').textContent.trim().split(' ').map(Number);
-                    const e = element.querySelector('End').textContent.trim().split(' ').map(Number);
-                    p.push(proj4('EPSG:5258', 'WGS84', [s[1], s[0]]), proj4('EPSG:5258', 'WGS84', [e[1], e[0]]));
-                } else if (element.tagName === 'Curve') {
-                    const s = element.querySelector('Start').textContent.trim().split(' ').map(Number);
-                    const c = element.querySelector('Center').textContent.trim().split(' ').map(Number);
-                    const r = parseFloat(element.getAttribute('radius'));
-                    const rot = element.getAttribute('rot');
-                    const sA = Math.atan2(s[0] - c[0], s[1] - c[1]);
-                    const e = element.querySelector('End').textContent.trim().split(' ').map(Number);
-                    const eA = Math.atan2(e[0] - c[0], e[1] - c[1]);
-                    let aD = eA - sA;
-                    if (rot === 'cw' && aD > 0) aD -= 2 * Math.PI;
-                    if (rot === 'ccw' && aD < 0) aD += 2 * Math.PI;
-                    const nS = Math.max(10, Math.ceil(Math.abs(aD * r) / 5));
-                    for (let i = 0; i <= nS; i++) {
-                        const angle = sA + (aD * i) / nS;
-                        p.push(proj4('EPSG:5258', 'WGS84', [c[1] + r * Math.cos(angle), c[0] + r * Math.sin(angle)]));
-                    }
-                }
-                return p.map(pt => [pt[1], pt[0]]);
-            }
-            
-            initialize();
-        });
-    </script>
+function saveRoutesMeta(routes){
+  try { localStorage.setItem(LS_ROUTES, JSON.stringify(routes||[])); } catch(e){ console.error(e); }
+}
+function loadRoutesMeta(){ try { return JSON.parse(localStorage.getItem(LS_ROUTES) || '[]'); } catch(e){ return []; } }
+
+/* LatLng -> WebMercator metre koordinatı (yaklaşık, küçük alanlar için yeterli) */
+function latLngToMercatorLatLon(lat, lng){
+  // Web Mercator (EPSG:3857)
+  const x = lng * 20037508.34 / 180;
+  const y = Math.log(Math.tan((90 + lat) * Math.PI/360)) / (Math.PI/180);
+  const yy = y * 20037508.34 / 180;
+  return [x, yy];
+}
+
+/* Polygon alanı (m2) via shoelace on mercator */
+function polygonAreaMeters(latlngs){
+  if (!latlngs || latlngs.length < 3) return 0;
+  let pts = latlngs.map(p => latLngToMercatorLatLon(p.lat, p.lng));
+  let area = 0;
+  for (let i=0;i<pts.length;i++){
+    const j=(i+1)%pts.length;
+    area += pts[i][0]*pts[j][1] - pts[j][0]*pts[i][1];
+  }
+  return Math.abs(area/2);
+}
+
+/* Polyline uzunluğu metre */
+function polylineLength(latlngs){
+  let s = 0;
+  for (let i=0;i<latlngs.length-1;i++){
+    s += latlngs[i].distanceTo(latlngs[i+1]);
+  }
+  return s;
+}
+
+/* GPX export (very simple) */
+function exportPointsToGPX(points){
+  let gpx = `<?xml version="1.0" encoding="utf-8"?>\n<gpx version="1.1" creator="Ozmert E5 Harita Pro">\n`;
+  for (const p of points){
+    gpx += `<wpt lat="${p.lat}" lon="${p.lng}"><name><![CDATA[${p.title||''}]]></name><desc><![CDATA[${p.desc||''}]]></desc></wpt>\n`;
+  }
+  gpx += '</gpx>';
+  return gpx;
+}
+
+/* CSV export */
+function exportPointsToCSV(points){
+  let csv = 'title,desc,lat,lng,ts\n';
+  for (const p of points) csv += `"${(p.title||'')}", "${(p.desc||'')}", ${p.lat}, ${p.lng}, ${p.ts||''}\n`;
+  return csv;
+}
+
+/* KM hesaplama: verilen polyline (L.Polyline) ve bir latlng -> en yakın nokta ve distance along polyline */
+function findClosestPointOnPolyline(latlng, polyline){
+  if (!polyline) return {point:null, segmentIndex:-1};
+  const latLngs = polyline.getLatLngs();
+  if (!latLngs || latLngs.length < 2) return {point:null, segmentIndex:-1};
+  let minDist = Infinity, res = {point:null, segmentIndex:-1, offset:Infinity, direction:'--'};
+  for (let i=0;i<latLngs.length-1;i++){
+    const p1 = latLngs[i], p2 = latLngs[i+1];
+    const dx = p2.lng - p1.lng, dy = p2.lat - p1.lat;
+    if (dx === 0 && dy === 0) continue;
+    const t = ((latlng.lng - p1.lng)*dx + (latlng.lat - p1.lat)*dy) / (dx*dx + dy*dy);
+    const cp = (t <= 0) ? p1 : (t >= 1) ? p2 : L.latLng(p1.lat + t*dy, p1.lng + t*dx);
+    const d = latlng.distanceTo(cp);
+    if (d < minDist){
+      minDist = d;
+      const cross = (p2.lng - p1.lng)*(latlng.lat - p1.lat) - (p2.lat - p1.lat)*(latlng.lng - p1.lng);
+      const dir = Math.abs(cross) < 1e-9 ? 'Üzerinde' : (cross > 0 ? 'Sağ' : 'Sol');
+      res = { point:cp, segmentIndex:i, offset:d, direction:dir };
+      minDist = d;
+    }
+  }
+  return res;
+}
+
+function calculateDistanceAlongPolyline(closest, polyline){
+  if (!closest || !closest.point || closest.segmentIndex < 0) return NaN;
+  const latLngs = polyline.getLatLngs();
+  let dist = 0;
+  for (let i=0;i<closest.segmentIndex;i++) dist += latLngs[i].distanceTo(latLngs[i+1]);
+  dist += latLngs[closest.segmentIndex].distanceTo(closest.point);
+  return dist;
+}
+
+/* ========== Güzergah XML parse & render (Line + Curve) ========== */
+async function parseAndRenderXML(xmlText, name = 'Güzergah') {
+  // Güçlü hata yakalama
+  try {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(xmlText, 'text/xml');
+    const alignment = xml.querySelector('Alignment');
+    if (!alignment) throw new Error('XML içinde <Alignment> bulunamadı.');
+    // start station (şablona göre farklı attribute isimleri olabilir)
+    const sAttr = alignment.getAttribute('staStart') || alignment.getAttribute('StaStart') || alignment.getAttribute('start') || '0';
+    startStation = parseFloat(sAttr) || 0;
+
+    // CoordGeom içindeki Line/Curve parse
+    let points = [];
+    const coordGeoms = alignment.querySelectorAll('CoordGeom');
+    if (!coordGeoms.length){
+      // fallback: alignment doğrudan çocukları
+      for (const el of alignment.children) points.push(...parseElement(el));
+    } else {
+      coordGeoms.forEach(cg => {
+        for (const el of cg.children) points.push(...parseElement(el));
+      });
+    }
+    if (!points.length) throw new Error('Güzergah noktası elde edilemedi.');
+
+    // convert proj4 -> Leaflet lat/lng
+    const latlngs = points.map(pt => L.latLng(pt[0], pt[1])); // pt = [lat, lng]
+    lastRoutePoints = latlngs;
+
+    const poly = L.polyline(latlngs, {color:'#d33', weight:4, opacity:0.85}).addTo(map);
+    routeLayers.push({name:name, polyline:poly, visible:true});
+    saveRoutesMeta(routeLayers.map(r=>({name:r.name}))); // sadece basit meta
+    map.fitBounds(poly.getBounds(), {padding:[40,40]});
+    isAppReady = true;
+    gpsBtn.disabled = false;
+    gpsBtn.textContent = 'Başlat';
+    updateRoutesDrawer();
+    return poly;
+  } catch (e){
+    console.error('XML parse error', e);
+    throw e;
+  }
+}
+
+/* Tek bir Line/Curve elementini parse eden yardımcı */
+function parseElement(element){
+  const pts = [];
+  if (!element || !element.tagName) return pts;
+  function tnums(s){ return s.trim().split(/\s+/).map(Number); }
+  if (element.tagName === 'Line'){
+    const s = element.querySelector('Start');
+    const e = element.querySelector('End');
+    if (s && e){
+      const sArr = tnums(s.textContent); const eArr = tnums(e.textContent);
+      // Orijinal kodda proj4('EPSG:5258', 'WGS84', [s[1], s[0]])
+      // proj4 returns [lon,lat]
+      try {
+        const sp = proj4('EPSG:5258','WGS84',[sArr[1], sArr[0]]);
+        const ep = proj4('EPSG:5258','WGS84',[eArr[1], eArr[0]]);
+        pts.push([sp[1], sp[0]]); pts.push([ep[1], ep[0]]);
+      } catch(e){ console.warn('proj4 line fail', e); }
+    }
+  } else if (element.tagName === 'Curve'){
+    try {
+      const s = tnums(element.querySelector('Start').textContent);
+      const e = tnums(element.querySelector('End').textContent);
+      const c = tnums(element.querySelector('Center').textContent);
+      const r = parseFloat(element.getAttribute('radius') || element.getAttribute('R') || '0');
+      const rot = element.getAttribute('rot') || 'ccw';
+      // Use projected coordinates (easting,northing)
+      const sproj = [s[1], s[0]], eproj = [e[1], e[0]], cproj = [c[1], c[0]];
+      const sA = Math.atan2(sproj[1]-cproj[1], sproj[0]-cproj[0]);
+      const eA = Math.atan2(eproj[1]-cproj[1], eproj[0]-cproj[0]);
+      let aD = eA - sA;
+      if (rot === 'cw' && aD > 0) aD -= 2*Math.PI;
+      if (rot === 'ccw' && aD < 0) aD += 2*Math.PI;
+      const arcLen = Math.abs(aD * r);
+      const n = Math.max(12, Math.ceil(arcLen / 5));
+      for (let i=0;i<=n;i++){
+        const ang = sA + (aD * i / n);
+        const px = cproj[0] + r*Math.cos(ang), py = cproj[1] + r*Math.sin(ang);
+        const w = proj4('EPSG:5258','WGS84',[px,py]); // [lon,lat]
+        pts.push([w[1], w[0]]);
+      }
+    } catch(er){ console.warn('Curve parse failed', er); }
+  } else {
+    // fallback: try Start/End anywhere
+    const sEl = element.querySelector && element.querySelector('Start');
+    const eEl = element.querySelector && element.querySelector('End');
+    if (sEl && eEl){
+      const s = tnums(sEl.textContent), e = tnums(eEl.textContent);
+      try {
+        const sp = proj4('EPSG:5258','WGS84',[s[1], s[0]]);
+        const ep = proj4('EPSG:5258','WGS84',[e[1], e[0]]);
+        pts.push([sp[1], sp[0]]); pts.push([ep[1], ep[0]]);
+      } catch(e){ }
+    }
+  }
+  // return [ [lat,lng], ... ]
+  return pts;
+}
+
+/* ========== Routes drawer (listeleme ve görünürlük) ========== */
+function updateRoutesDrawer(){
+  drawerRoutes.innerHTML = '<h3>Güzergahlar</h3>';
+  if (!routeLayers.length) drawerRoutes.innerHTML += '<div class="muted">Yüklenmiş güzergah yok.</div>';
+  routeLayers.forEach((r, idx) => {
+    const div = document.createElement('div'); div.className='list-item';
+    div.innerHTML = `<div>${r.name}</div><div style="display:flex;gap:8px"><button data-idx="${idx}" class="small toggle">G/ ${r.visible? 'Gizle':'Göster'}</button><button data-idx="${idx}" class="small goto">Git</button></div>`;
+    drawerRoutes.appendChild(div);
+  });
+  // actions
+  drawerRoutes.querySelectorAll('.toggle').forEach(b=>{
+    b.addEventListener('click', ()=> {
+      const i = +b.getAttribute('data-idx');
+      const r = routeLayers[i];
+      if (!r) return;
+      if (r.visible){ map.removeLayer(r.polyline); r.visible=false; b.textContent='Göster'; }
+      else { r.polyline.addTo(map); r.visible=true; b.textContent='Gizle'; }
+    });
+  });
+  drawerRoutes.querySelectorAll('.goto').forEach(b=>{
+    b.addEventListener('click', ()=> {
+      const i = +b.getAttribute('data-idx');
+      const r = routeLayers[i];
+      if (r && r.polyline){ map.fitBounds(r.polyline.getBounds(), {padding:[40,40]}); panel.classList.remove('collapsed'); }
+    });
+  });
+}
+
+/* ========== Points: kaydetme, listeleme, export ========== */
+function addPointManually(latlng, meta){
+  const pts = loadPoints();
+  const p = {
+    id: Date.now(),
+    lat: latlng.lat,
+    lng: latlng.lng,
+    title: meta.title || ('P' + (pts.length+1)),
+    desc: meta.desc || '',
+    photo: meta.photo || null, // base64
+    ts: new Date().toISOString()
+  };
+  pts.push(p);
+  savePoints(pts);
+  toast('Nokta kaydedildi');
+  updatePointsDrawer();
+}
+
+function updatePointsDrawer(){
+  const pts = loadPoints();
+  drawerPoints.innerHTML = '<h3>Kaydedilen Noktalar</h3>';
+  if (!pts.length) drawerPoints.innerHTML += '<div class="muted">Henüz nokta yok.</div>';
+  pts.forEach(p=>{
+    const div = document.createElement('div'); div.className='list-item';
+    const left = document.createElement('div');
+    left.innerHTML = `<div><strong>${p.title}</strong></div><div class="muted">${p.desc}</div>`;
+    const right = document.createElement('div');
+    right.style.display='flex'; right.style.gap='8px'; right.style.alignItems='center';
+    const btnShow = document.createElement('button'); btnShow.className='small'; btnShow.textContent='Göster';
+    const btnExport = document.createElement('button'); btnExport.className='small'; btnExport.textContent='Dışa';
+    const btnDelete = document.createElement('button'); btnDelete.className='small'; btnDelete.textContent='Sil';
+    right.appendChild(btnShow); right.appendChild(btnExport); right.appendChild(btnDelete);
+    div.appendChild(left); div.appendChild(right);
+    drawerPoints.appendChild(div);
+
+    btnShow.addEventListener('click', ()=> {
+      const ll = L.latLng(p.lat, p.lng);
+      L.marker(ll).addTo(map).bindPopup(`<strong>${p.title}</strong><div>${p.desc}</div>${p.photo?'<div><img src="'+p.photo+'" style="width:120px;border-radius:8px;margin-top:6px"></div>':''}`).openPopup();
+      map.setView(ll, 18);
+    });
+    btnDelete.addEventListener('click', ()=> {
+      if (!confirm('Silinsin mi?')) return;
+      const newPts = loadPoints().filter(x=>x.id !== p.id);
+      savePoints(newPts); updatePointsDrawer();
+    });
+    btnExport.addEventListener('click', ()=> {
+      const csv = exportPointsToCSV([p]);
+      downloadFile('point.csv', csv, 'text/csv');
+    });
+  });
+
+  // genel export butonları
+  const wrap = document.createElement('div'); wrap.style.padding='10px';
+  wrap.innerHTML = `<button id="exportAllJson" class="btn" style="margin-right:8px">JSON Ex</button>
+                    <button id="exportAllGpx" class="btn" style="background:#28a745">GPX Ex</button>
+                    <button id="importJson" class="btn ghost" style="margin-left:8px">JSON İÇE AL</button>`;
+  drawerPoints.prepend(wrap);
+  document.getElementById('exportAllJson').addEventListener('click', ()=> {
+    const pts = loadPoints(); downloadFile('points.json', JSON.stringify(pts, null, 2), 'application/json');
+  });
+  document.getElementById('exportAllGpx').addEventListener('click', ()=> {
+    const pts = loadPoints(); const g = exportPointsToGPX(pts); downloadFile('points.gpx', g, 'application/gpx+xml');
+  });
+  document.getElementById('importJson').addEventListener('click', ()=> {
+    const f = document.createElement('input'); f.type='file'; f.accept='.json'; f.onchange = async (e)=> {
+      const file = e.target.files[0]; if (!file) return;
+      const txt = await file.text();
+      try {
+        const arr = JSON.parse(txt);
+        if (!Array.isArray(arr)) throw new Error('Beklenen dizi değil');
+        savePoints(arr); updatePointsDrawer(); toast('İçe aktarıldı');
+      } catch(err){ alert('Import hata: '+err.message); }
+    }; f.click();
+  });
+}
+
+/* Basit dosya indirme helper */
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], {type: mime || 'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ========== GPS takip ========== */
+function startGps(){
+  if (!navigator.geolocation){ alert('Cihaz GPS desteklemiyor'); return; }
+  gpsBtn.disabled = true; gpsBtn.textContent = 'Bağlanıyor...';
+  gpsWatcher = navigator.geolocation.watchPosition(onPosition, onPosError, { enableHighAccuracy:true, maximumAge:0, timeout:10000 });
+}
+
+function stopGps(){
+  if (gpsWatcher){ navigator.geolocation.clearWatch(gpsWatcher); gpsWatcher=null; gpsBtn.textContent='Başlat'; gpsBtn.style.background=''; gpsBtn.disabled=false; }
+}
+
+function onPosError(err){
+  console.warn('GPS error', err);
+  toast('GPS hatası veya izin reddedildi');
+  stopGps();
+}
+
+function onPosition(pos){
+  gpsBtn.disabled=false; gpsBtn.textContent='Durdur'; gpsBtn.style.background='var(--danger)';
+  const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+  const alt = pos.coords.altitude;
+  const speed = pos.coords.speed; // m/s
+  const heading = pos.coords.heading;
+  // marker
+  if (!userMarker) userMarker = L.circleMarker(latlng, {radius:8, color:'#0078d4', fillColor:'#2a9df4', fillOpacity:0.9}).addTo(map);
+  else userMarker.setLatLng(latlng);
+
+  // follow
+  if (follow) map.setView(latlng, 18);
+
+  // speed fallback: if pos.coords.speed null, compute from prev
+  let spVal = null;
+  if (speed != null && !isNaN(speed)) spVal = speed * 3.6; // km/h
+  else if (prevPosition){
+    const dt = (pos.timestamp - prevPosition.timestamp)/1000;
+    if (dt > 0){
+      const d = latlng.distanceTo(prevPosition.latlng);
+      spVal = (d/dt)*3.6;
+    }
+  }
+  if (spVal != null) spEl.textContent = spVal.toFixed(1) + ' km/h'; else spEl.textContent = '--';
+
+  altEl.textContent = (alt!=null && !isNaN(alt)) ? alt.toFixed(1) + ' m' : '--';
+
+  // update calculations (KM/off)
+  if (routeLayers.length){
+    // choose first visible route (prioritize lastRoutePoints if present)
+    const chosen = routeLayers.find(r=>r.visible) || routeLayers[routeLayers.length-1];
+    if (chosen){
+      const closest = findClosestPointOnPolyline(latlng, chosen.polyline);
+      if (!closest || !closest.point) { kmEl.textContent='Güzergah Dışı'; ofsEl.textContent='--'; kmEl.classList.add('error'); }
+      else {
+        const distAlong = calculateDistanceAlongPolyline(closest, chosen.polyline);
+        const km = startStation + distAlong;
+        kmEl.textContent = (km/1000).toFixed(3);
+        ofsEl.textContent = `${closest.direction} ${closest.offset.toFixed(1)}m`;
+        kmEl.classList.remove('error');
+      }
+    }
+  }
+
+  prevPosition = { latlng, timestamp: pos.timestamp };
+
+  // store last known maybe for resume
+}
+
+/* ========== Ölçüm modu (distance / area) ========== */
+function enterMeasure(mode){
+  measureMode = mode; measurePoints = [];
+  if (measureLayer) map.removeLayer(measureLayer);
+  measureLayer = L.layerGroup().addTo(map);
+  toast((mode==='area'?'Alan':'Mesafe') + ' ölçüm modu: haritaya dokunun. İptal için butona tekrar basın.');
+}
+
+function exitMeasure(){
+  measureMode = null;
+  if (measureLayer){ map.removeLayer(measureLayer); measureLayer=null; measurePoints=[]; }
+}
+
+/* Menü ve buton eventleri */
+document.getElementById('gpsBtn').addEventListener('click', ()=> {
+  if (!isAppReady){ alert('Önce güzergah yükleyin.'); return; }
+  if (gpsWatcher) stopGps(); else startGps();
+});
+followToggle.addEventListener('click', ()=> {
+  follow = !follow; followToggle.style.background = follow ? 'var(--accent)' : 'var(--card)';
+});
+addPointBtn.addEventListener('click', ()=> {
+  // nokta ekleme: önce kullanıcıya seçim sun
+  toast('Kaydetmek için haritaya dokun veya konumdan kaydetmek için "Konumdan Kaydet" seç.');
+  // show temporary choices via prompt for simplicity
+  const choice = confirm('Mevcut GPS konumundan nokta kaydetmek ister misin? (Hayır -> haritaya dokunarak yer seçebilirsin)');
+  if (choice){
+    if (!prevPosition) { alert('Henüz GPS konumu yok. Haritaya dokunarak işaretleyin.'); return; }
+    // capture photo?
+    capturePointFromLatLng(prevPosition.latlng);
+  } else {
+    // instruct user to tap map: set up single click listener
+    const handler = function(e){
+      capturePointFromLatLng(e.latlng);
+      map.off('click', handler);
+    };
+    map.on('click', handler);
+  }
+});
+
+async function capturePointFromLatLng(latlng){
+  // prompt for title/desc
+  const title = prompt('Başlık (opsiyonel):', '');
+  const desc = prompt('Açıklama (opsiyonel):', '');
+  const photoOk = confirm('Fotoğraf eklemek ister misin? (Telefon kamerası açılacaktır)');
+  let photoData = null;
+  if (photoOk){
+    // trigger file input capture
+    try {
+      const file = await pickImageFile(); // promise
+      if (file){
+        photoData = await readFileAsDataURL(file);
+      }
+    } catch(e){ console.warn('photo cancelled', e); }
+  }
+  addPointManually(latlng, {title, desc, photo:photoData});
+}
+
+/* Mobil fotoğraf seçim helper (kullanıcıya file picker açar) */
+function pickImageFile(){
+  return new Promise((resolve, reject) => {
+    pointPhoto.value = '';
+    pointPhoto.onchange = (e)=>{
+      const f = e.target.files && e.target.files[0];
+      resolve(f || null);
+    };
+    pointPhoto.click();
+    // timeout fallback
+    setTimeout(()=>{/* no-op */}, 5000);
+  });
+}
+
+function readFileAsDataURL(file){
+  return new Promise((res, rej)=>{
+    const fr = new FileReader();
+    fr.onload = ()=> res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+}
+
+/* Ölçüm butonu */
+measureBtn.addEventListener('click', ()=> {
+  if (!measureMode) {
+    // show choice: distance or area
+    const isArea = confirm('Alan mı ölçülsün? (Tamam = Alan, İptal = Mesafe)');
+    enterMeasure(isArea? 'area' : 'distance');
+  } else {
+    exitMeasure();
+  }
+});
+
+/* Haritaya tıklama: ölçüm veya (normal) nothing */
+map.on('click', (e)=> {
+  if (measureMode){
+    measurePoints.push(e.latlng);
+    // redraw layer
+    if (measureLayer) measureLayer.clearLayers();
+    if (measurePoints.length === 1){
+      L.marker(measurePoints[0]).addTo(measureLayer);
+    } else {
+      if (measureMode === 'distance'){
+        const poly = L.polyline(measurePoints, {color:'#0078d4'}).addTo(measureLayer);
+        // add text: length
+        const len = polylineLength(measurePoints);
+        L.marker(measurePoints[measurePoints.length-1], {opacity:0.001}).addTo(measureLayer)
+          .bindPopup('Toplam: ' + len.toFixed(2) + ' m').openPopup();
+      } else {
+        const poly = L.polygon(measurePoints, {color:'#0078d4', fillOpacity:0.15}).addTo(measureLayer);
+        const area = polygonAreaMeters(measurePoints);
+        L.marker(measurePoints[measurePoints.length-1]).addTo(measureLayer)
+          .bindPopup('Alan: ' + area.toFixed(2) + ' m²').openPopup();
+      }
+    }
+    return;
+  }
+});
+
+/* Fare hareketi -> crosshair KM bilgisi (debounce) for performance */
+let mmTO = null;
+map.on('mousemove', (e)=> {
+  if (mmTO) clearTimeout(mmTO);
+  mmTO = setTimeout(()=> {
+    if (!routeLayers.length) { crossInfo.style.display='none'; if (crosshairLine) {map.removeLayer(crosshairLine); crosshairLine=null;} return; }
+    const chosen = routeLayers.find(r=>r.visible) || routeLayers[routeLayers.length-1];
+    if (!chosen) return;
+    const closest = findClosestPointOnPolyline(e.latlng, chosen.polyline);
+    if (!closest || !closest.point){ crossInfo.style.display='none'; if (crosshairLine) {map.removeLayer(crosshairLine); crosshairLine=null;} return; }
+    const distAlong = calculateDistanceAlongPolyline(closest, chosen.polyline);
+    const km = startStation + distAlong;
+    crossInfo.style.display='block';
+    crossInfo.textContent = `KM: ${(km/1000).toFixed(3)} | Ofset: ${closest.direction} ${closest.offset.toFixed(1)}m`;
+    if (crosshairLine) map.removeLayer(crosshairLine);
+    crosshairLine = L.polyline([e.latlng, closest.point], {color:'#111', weight:1, dashArray:'5,5'}).addTo(map);
+  }, 20);
+});
+map.on('mouseout', ()=> { crossInfo.style.display='none'; if (crosshairLine) {map.removeLayer(crosshairLine); crosshairLine=null;} });
+
+/* ========== KM'ye Git fonksiyonu ========== */
+goToKmBtn.addEventListener('click', ()=> {
+  const v = kmInput.value.trim();
+  if (!v) return;
+  let val = v.replace(',', '.');
+  let kmVal = parseFloat(val);
+  if (isNaN(kmVal)){ alert('Geçerli sayı girin'); return; }
+  const meters = (kmVal > 1000) ? kmVal : kmVal*1000;
+  const needed = meters - startStation;
+  if (needed < 0){ alert('Girilen KM, başlangıç istasyonundan küçük'); return; }
+  // seçili route
+  const chosen = routeLayers.find(r=>r.visible) || routeLayers[routeLayers.length-1];
+  if (!chosen){ alert('Güzergah yok'); return; }
+  const latlngs = chosen.polyline.getLatLngs();
+  let acc = 0;
+  for (let i=0;i<latlngs.length-1;i++){
+    const p1 = latlngs[i], p2 = latlngs[i+1];
+    const seg = p1.distanceTo(p2);
+    if (acc + seg >= needed){
+      const ratio = (needed - acc)/seg;
+      const targetLat = p1.lat + ratio*(p2.lat - p1.lat);
+      const targetLng = p1.lng + ratio*(p2.lng - p1.lng); // tLng bug fixed: targetLng
+      const t = L.latLng(targetLat, targetLng);
+      L.marker(t).addTo(map).bindPopup(`KM: ${(meters/1000).toFixed(3)}`).openPopup();
+      map.setView(t, 18);
+      return;
+    }
+    acc += seg;
+  }
+  alert('Girilen KM güzergah dışında!');
+});
+
+/* ========== XML yükleme butonu ========== */
+btnLoadXML.addEventListener('click', ()=> xmlFile.click());
+xmlFile.addEventListener('change', async (e)=> {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const txt = await f.text();
+  try {
+    const poly = await parseAndRenderXML(txt, f.name || 'Güzergah');
+    // save route meta (store name + basic bounding box)
+    updateRoutesDrawer();
+  } catch(err){ alert('XML parse hatası: '+err.message); }
+});
+
+/* Drawer toggles */
+btnRoutes.addEventListener('click', ()=> {
+  drawerRoutes.classList.toggle('open');
+  drawerPoints.classList.remove('open');
+  updateRoutesDrawer();
+});
+btnPoints.addEventListener('click', ()=> {
+  drawerPoints.classList.toggle('open');
+  drawerRoutes.classList.remove('open');
+  updatePointsDrawer();
+});
+
+/* Theme toggle */
+btnTheme.addEventListener('click', ()=> {
+  document.body.classList.toggle('night');
+});
+
+/* Load initial state routes meta -> (note: actual polyline geometry stored per session only) */
+function loadSavedState(){
+  const savedRoutes = loadRoutesMeta();
+  // only metadata available; prompt user to load actual XML if needed
+  if (savedRoutes && savedRoutes.length){
+    // create simple list entries (no polylines)
+    // user must re-upload XML to see polyline (we keep original XML not stored to avoid heavy LS usage)
+    // saveRoutesMeta keeps meta for UX
+    // For now nothing to draw
+  }
+}
+
+/* ================= Export/Import helpers for routes (simple) ================ */
+/* Not storing full route geometry persistently to localStorage to avoid exceeding quota; user can export GPX after loading route. */
+
+/* ================= Utility: download current route points as CSV ================= */
+function exportCurrentRouteAsCSV(routeIndex=routeLayers.length-1){
+  if (!routeLayers.length) { alert('Güzergah yok'); return; }
+  const r = routeLayers[routeIndex];
+  const latlngs = r.polyline.getLatLngs();
+  // accumulate distance
+  let acc = 0; let csv = 'lat,lng,metersFromStart\n';
+  for (let i=0;i<latlngs.length;i++){
+    if (i>0) acc += latlngs[i-1].distanceTo(latlngs[i]);
+    csv += `${latlngs[i].lat},${latlngs[i].lng},${(startStation + acc).toFixed(3)}\n`;
+  }
+  downloadFile('route.csv', csv, 'text/csv');
+}
+
+/* Quick UI wiring for sample exports (attached to long-press? For brevity: attach to drawers top) */
+drawerRoutes.addEventListener('dblclick', ()=> exportCurrentRouteAsCSV());
+
+/* ========== Başlangıç (UI init) ========== */
+gpsBtn.disabled = true;
+gpsBtn.textContent = 'Güzergah Bekleniyor';
+updateRoutesDrawer();
+updatePointsDrawer();
+
+/* Small hint: long-press map to add marker? We use dedicated button */
+
+/* ========== Son: Kullanıcıya kısa ipuçları (console) ========== */
+console.log('Özmert E5 Harita Pro yüklendi. XML yükle -> GPS başlat -> Nokta ekle.');
+
+</script>
+
 </body>
 </html>
