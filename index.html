@@ -56,10 +56,9 @@
 <!-- Crosshair popup -->
 <div id="crosshair-info">KM: -- | Ofset: --</div>
 
-<!-- Top quick controls -->
+<!-- Top quick controls (XML yükle butonu kaldırıldı; rota otomatik yüklenecek) -->
 <div class="topbar">
-  <button id="btnLoadXML" class="small" title="XML yükle">XML</button>
-  <input id="xmlFile" type="file" accept=".xml" style="display:none" />
+  <!-- XML yükleme gizlendi; kullanıcı etkileşimi yok -->
   <button id="btnRoutes" class="small" title="Yüklü güzergahlar">Güzergahlar</button>
   <button id="btnPoints" class="small" title="Kaydedilen noktalar">Noktalar</button>
   <button id="btnTheme" class="small" title="Gece modu">🌙</button>
@@ -115,15 +114,9 @@
 
 <script>
 /*
-  Özmert E5 Harita Pro
-  Tam özellikli, mobil öncelikli tek dosya uygulama.
-  - Güzergah XML yükleme (multiple)
-  - KM/Ofset hesaplama
-  - GPS takip, hız, yükseklik, yön
-  - Nokta kaydetme + fotoğraf (localStorage)
-  - Ölçüm modu (mesafe / alan)
-  - Gece modu + responsive UI
-  - İçe/dışa aktarma: JSON/CSV/GPX
+  Özmert E5 Harita Pro — otomatik XML yüklemeli tam sürüm
+  DEĞİŞİKLİK: XML yükleme kullanıcı etkileşimi kaldırıldı; açılır açılmaz ADANA-CEYHAN_REV1.xml otomatik yüklenir.
+  Diğer tüm özellikler korunmuştur.
 */
 
 /* ========== Başlangıç: değişkenler & harita ========== */
@@ -162,8 +155,6 @@ const addPointBtn = document.getElementById('addPointBtn');
 const measureBtn = document.getElementById('measureBtn');
 const panel = document.getElementById('panel');
 const panelHandle = document.getElementById('panelHandle');
-const btnLoadXML = document.getElementById('btnLoadXML');
-const xmlFile = document.getElementById('xmlFile');
 const drawerRoutes = document.getElementById('drawerRoutes');
 const drawerPoints = document.getElementById('drawerPoints');
 const btnRoutes = document.getElementById('btnRoutes');
@@ -734,48 +725,6 @@ goToKmBtn.addEventListener('click', ()=> {
   alert('Girilen KM güzergah dışında!');
 });
 
-/* ========== XML yükleme butonu ========== */
-btnLoadXML.addEventListener('click', ()=> xmlFile.click());
-xmlFile.addEventListener('change', async (e)=> {
-  const f = e.target.files && e.target.files[0];
-  if (!f) return;
-  const txt = await f.text();
-  try {
-    const poly = await parseAndRenderXML(txt, f.name || 'Güzergah');
-    // save route meta (store name + basic bounding box)
-    updateRoutesDrawer();
-  } catch(err){ alert('XML parse hatası: '+err.message); }
-});
-
-/* Drawer toggles */
-btnRoutes.addEventListener('click', ()=> {
-  drawerRoutes.classList.toggle('open');
-  drawerPoints.classList.remove('open');
-  updateRoutesDrawer();
-});
-btnPoints.addEventListener('click', ()=> {
-  drawerPoints.classList.toggle('open');
-  drawerRoutes.classList.remove('open');
-  updatePointsDrawer();
-});
-
-/* Theme toggle */
-btnTheme.addEventListener('click', ()=> {
-  document.body.classList.toggle('night');
-});
-
-/* Load initial state routes meta -> (note: actual polyline geometry stored per session only) */
-function loadSavedState(){
-  const savedRoutes = loadRoutesMeta();
-  // only metadata available; prompt user to load actual XML if needed
-  if (savedRoutes && savedRoutes.length){
-    // create simple list entries (no polylines)
-    // user must re-upload XML to see polyline (we keep original XML not stored to avoid heavy LS usage)
-    // saveRoutesMeta keeps meta for UX
-    // For now nothing to draw
-  }
-}
-
 /* ================= Export/Import helpers for routes (simple) ================ */
 /* Not storing full route geometry persistently to localStorage to avoid exceeding quota; user can export GPX after loading route. */
 
@@ -802,10 +751,24 @@ gpsBtn.textContent = 'Güzergah Bekleniyor';
 updateRoutesDrawer();
 updatePointsDrawer();
 
+/* Otomatik XML yükleme: index.html ile aynı klasörde ADANA-CEYHAN_REV1.xml */
+(async function autoLoadDefaultXML(){
+  try {
+    const resp = await fetch('ADANA-CEYHAN_REV1.xml');
+    if (!resp.ok) throw new Error('XML bulunamadı veya erişilemedi.');
+    const txt = await resp.text();
+    await parseAndRenderXML(txt, 'ADANA-CEYHAN_REV1.xml');
+    console.log('Varsayılan XML otomatik yüklendi.');
+  } catch(err){
+    console.error('Otomatik XML yükleme hatası:', err);
+    alert('Güzergah (ADANA-CEYHAN_REV1.xml) otomatik yüklenemedi: ' + err.message + '\nLütfen dosyanın index.html ile aynı klasörde ve doğru isimde olduğundan emin olun.');
+  }
+})();
+
 /* Small hint: long-press map to add marker? We use dedicated button */
 
 /* ========== Son: Kullanıcıya kısa ipuçları (console) ========== */
-console.log('Özmert E5 Harita Pro yüklendi. XML yükle -> GPS başlat -> Nokta ekle.');
+console.log('Özmert E5 Harita Pro yüklendi. Güzergah otomatik yüklenecek -> GPS başlat -> Nokta ekle.');
 
 </script>
 
