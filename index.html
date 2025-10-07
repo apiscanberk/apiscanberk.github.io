@@ -199,9 +199,10 @@
             }
 
             function onMapMouseMove(e) {
+                if (!routePolyline) return;
                 const latlng = e.latlng;
                 const closest = findClosestPointOnPolyline_Robust(latlng, routePolyline);
-                if (!closest.point) return;
+                if (!closest || closest.point === null) return;
                 const km = startStation + calculateDistanceAlongPolyline(closest, routePolyline);
                 
                 crosshairInfo.style.display = 'block';
@@ -213,13 +214,18 @@
 
             function onMapContextMenu(e) {
                 e.originalEvent.preventDefault();
+                if (!routePolyline) return;
                 const latlng = e.latlng;
                 const closest = findClosestPointOnPolyline_Robust(latlng, routePolyline);
+                if (!closest || closest.point === null) return;
                 const km = startStation + calculateDistanceAlongPolyline(closest, routePolyline);
                 
                 L.popup().setLatLng(latlng).setContent(`<button id="addReportBtn" class="control-button">Rapor Ekle (KM: ${(km/1000).toFixed(3)})</button>`).openOn(map);
                 
-                document.getElementById('addReportBtn').onclick = () => { map.closePopup(); openReportModal(km); };
+                const btn = document.getElementById('addReportBtn');
+                if (btn) {
+                    btn.onclick = () => { map.closePopup(); openReportModal(km); };
+                }
             }
             
             function openReportModal(km) {
@@ -269,10 +275,10 @@
 
             function toggleGps() { if (gpsWatcherId) { navigator.geolocation.clearWatch(gpsWatcherId); gpsWatcherId = null; gpsButton.textContent = "Başlat"; gpsButton.style.backgroundColor = 'var(--success-color)'; } else { startGpsTracking(); } }
             function startGpsTracking() { if (!navigator.geolocation) { alert("GPS Desteklenmiyor"); return; } gpsButton.textContent = "Bağlanılıyor..."; gpsButton.disabled = true; gpsWatcherId = navigator.geolocation.watchPosition((p) => { gpsButton.textContent = "Durdur"; gpsButton.disabled = false; gpsButton.style.backgroundColor = 'var(--danger-color)'; const userLatLng = L.latLng(p.coords.latitude, p.coords.longitude); if (!userMarker) { userMarker = L.circleMarker(userLatLng, { radius: 8, color: 'blue', fillColor: '#3388ff', fillOpacity: 0.8 }).addTo(map); map.setView(userLatLng, 18); } else { userMarker.setLatLng(userLatLng); } if (isFollowing) map.panTo(userLatLng); updateCalculations(userLatLng); }, () => { alert("GPS sinyali alınamadı."); gpsButton.textContent = "Tekrar Dene"; gpsButton.disabled = false; }, { enableHighAccuracy: true }); }
-            function updateCalculations(userLatLng) { try { const closest = findClosestPointOnPolyline_Robust(userLatLng, routePolyline); const currentKm = startStation + calculateDistanceAlongPolyline(closest, routePolyline); kilometreElement.textContent = `${(currentKm / 1000).toFixed(3)}`; ofsetElement.textContent = `${closest.direction} ${closest.offset.toFixed(1)}m`; if (connectionLine) map.removeLayer(connectionLine); connectionLine = L.polyline([userLatLng, closest.point], { color: 'black', weight: 2, dashArray: '5, 10' }).addTo(map); } catch (e) { kilometreElement.textContent = "Hata"; } }
-            function goToKm() { const km = parseFloat(kmInput.value) * 1000; if (isNaN(km)) return; if(manualMarker) map.removeLayer(manualMarker); let d = 0; const latLngs = routePolyline.getLatLngs(); for (let i = 0; i < latLngs.length - 1; i++) { const p1 = latLngs[i], p2 = latLngs[i+1]; const sD = p1.distanceTo(p2); if (d + sD >= (km - startStation)) { const r = (km - startStation - d) / sD; const tLat = p1.lat + r * (p2.lat - p1.lat); const tLng = p1.lng + r * (p2.lng - p1.lng); const tP = L.latLng(tLat, tLng); manualMarker = L.marker(tP).addTo(map).bindPopup(`KM: ${(km/1000).toFixed(3)}`).openPopup(); map.setView(tP, 18); break; } d += sD; } }
+            function updateCalculations(userLatLng) { try { const closest = findClosestPointOnPolyline_Robust(userLatLng, routePolyline); if (!closest || closest.point === null) { throw new Error("Hesaplama yapılamadı."); } const currentKm = startStation + calculateDistanceAlongPolyline(closest, routePolyline); kilometreElement.textContent = `${(currentKm / 1000).toFixed(3)}`; ofsetElement.textContent = `${closest.direction} ${closest.offset.toFixed(1)}m`; if (connectionLine) map.removeLayer(connectionLine); connectionLine = L.polyline([userLatLng, closest.point], { color: 'black', weight: 2, dashArray: '5, 10' }).addTo(map); } catch (e) { kilometreElement.textContent = "Hata"; } }
+            function goToKm() { const km = parseFloat(kmInput.value); if (isNaN(km)) return; if(manualMarker) map.removeLayer(manualMarker); let d = 0; const latLngs = routePolyline.getLatLngs(); for (let i = 0; i < latLngs.length - 1; i++) { const p1 = latLngs[i], p2 = latLngs[i+1]; const sD = p1.distanceTo(p2); if (d + sD >= (km * 1000 - startStation)) { const r = (km * 1000 - startStation - d) / sD; const tLat = p1.lat + r * (p2.lat - p1.lat); const tLng = p1.lng + r * (p2.lng - p1.lng); const tP = L.latLng(tLat, tLng); manualMarker = L.marker(tP).addTo(map).bindPopup(`KM: ${km.toFixed(3)}`).openPopup(); map.setView(tP, 18); break; } d += sD; } }
             function parseElement(element) { let p = []; if (element.tagName === 'Line') { const s = element.querySelector('Start').textContent.trim().split(' ').map(Number); const e = element.querySelector('End').textContent.trim().split(' ').map(Number); p.push(proj4('EPSG:5258', 'WGS84', [s[1], s[0]]), proj4('EPSG:5258', 'WGS84', [e[1], e[0]])); } else if (element.tagName === 'Curve') { const s = element.querySelector('Start').textContent.trim().split(' ').map(Number); const c = element.querySelector('Center').textContent.trim().split(' ').map(Number); const r = parseFloat(element.getAttribute('radius')); const rot = element.getAttribute('rot'); const sA = Math.atan2(s[0] - c[0], s[1] - c[1]); const e = element.querySelector('End').textContent.trim().split(' ').map(Number); const eA = Math.atan2(e[0] - c[0], e[1] - c[1]); let aD = eA - sA; if (rot === 'cw' && aD > 0) aD -= 2 * Math.PI; if (rot === 'ccw' && aD < 0) aD += 2 * Math.PI; const nS = Math.max(10, Math.ceil(Math.abs(aD * r) / 5)); for (let i = 0; i <= nS; i++) { const angle = sA + (aD * i) / nS; p.push(proj4('EPSG:5258', 'WGS84', [c[1] + r * Math.cos(angle), c[0] + r * Math.sin(angle)])); } } return p.map(pt => [pt[1], pt[0]]); }
-            function findClosestPointOnPolyline_Robust(latlng, polyline) { const latLngs = polyline.getLatLngs(); let minDistance = Infinity; let closestResult = {}; for (let i = 0; i < latLngs.length - 1; i++) { const p1 = latLngs[i], p2 = latLngs[i+1]; const dx = p2.lng - p1.lng, dy = p2.lat - p1.lat; if (dx === 0 && dy === 0) continue; const t = ((latlng.lng - p1.lng) * dx + (latlng.lat - p1.lat) * dy) / (dx * dx + dy * dy); let closestPointOnSegment = (t < 0) ? p1 : (t > 1) ? p2 : L.latLng(p1.lat + t * dy, p1.lng + t * dx); const dist = latlng.distanceTo(closestPointOnSegment); if (dist < minDistance) { minDistance = dist; const crossProduct = (p2.lng - p1.lng) * (latlng.lat - p1.lat) - (p2.lat - p1.lat) * (latlng.lng - p1.lng); closestResult = { point: closestPointOnSegment, segmentIndex: i, offset: minDistance, direction: Math.abs(crossProduct) < 1e-9 ? 'Üzerinde' : crossProduct > 0 ? 'Sağ' : 'Sol' }; } } return closestResult; }
+            function findClosestPointOnPolyline_Robust(latlng, polyline) { const latLngs = polyline.getLatLngs(); let minDistance = Infinity; let closestResult = { point: null, segmentIndex: -1}; for (let i = 0; i < latLngs.length - 1; i++) { const p1 = latLngs[i], p2 = latLngs[i+1]; const dx = p2.lng - p1.lng, dy = p2.lat - p1.lat; if (dx === 0 && dy === 0) continue; const t = ((latlng.lng - p1.lng) * dx + (latlng.lat - p1.lat) * dy) / (dx * dx + dy * dy); let closestPointOnSegment = (t < 0) ? p1 : (t > 1) ? p2 : L.latLng(p1.lat + t * dy, p1.lng + t * dx); const dist = latlng.distanceTo(closestPointOnSegment); if (dist < minDistance) { minDistance = dist; const crossProduct = (p2.lng - p1.lng) * (latlng.lat - p1.lat) - (p2.lat - p1.lat) * (latlng.lng - p1.lng); closestResult = { point: closestPointOnSegment, segmentIndex: i, offset: minDistance, direction: Math.abs(crossProduct) < 1e-9 ? 'Üzerinde' : crossProduct > 0 ? 'Sağ' : 'Sol' }; } } return closestResult; }
             function calculateDistanceAlongPolyline({ point, segmentIndex }, polyline) { let d = 0; const latLngs = polyline.getLatLngs(); for (let i = 0; i < segmentIndex; i++) { d += latLngs[i].distanceTo(latLngs[i+1]); } d += latLngs[segmentIndex].distanceTo(point); return d; }
             
             initialize();
