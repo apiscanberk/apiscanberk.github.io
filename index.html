@@ -24,7 +24,7 @@
             box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
             border-top: 1px solid #ddd;
             display: flex; flex-direction: column;
-            max-height: 40vh; /* Panelin yüksekliği ayarlandı */
+            max-height: 40vh; 
             transition: max-height 0.3s ease-in-out;
         }
         #info-container {
@@ -57,7 +57,6 @@
         }
         #gpsButton { background-color: var(--success-color); }
         
-        /* Harita üzerindeki butonlar */
         #follow-toggle {
             position: absolute; bottom: 42vh; right: 10px; z-index: 1000; 
             background: var(--white); border: 2px solid rgba(0,0,0,0.2);
@@ -67,16 +66,14 @@
         }
         #follow-toggle.active { background-color: var(--brand-color); color: var(--white); }
 
-        /* Kılavuz Çizgi Bilgi Kutusu */
         #crosshair-info {
             position: absolute; top: 10px; left: 50%;
-            transform: translateX(-50%); background-color: rgba(43, 43, 43, 0.8);
+            transform: translateX(-50%); background-color: rgba(43, 43, 43, 0.85);
             color: white; padding: 8px 15px; border-radius: 8px;
             font-size: 1em; font-weight: 600; z-index: 1000;
             pointer-events: none; display: none; box-shadow: var(--shadow);
         }
         
-        /* Raporlama Modalı ve Listesi */
         .modal {
             display: none; position: fixed; z-index: 2000; left: 0; top: 0;
             width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); 
@@ -176,6 +173,7 @@
                     const xmlDoc = parser.parseFromString(xmlText, "text/xml");
                     
                     const alignment = xmlDoc.querySelector('Alignment');
+                    if (!alignment) throw new Error('XML dosyasında güzergah bilgisi (Alignment) bulunamadı.');
                     startStation = parseFloat(alignment.getAttribute('staStart'));
                     
                     let routePoints = [];
@@ -235,7 +233,7 @@
                 const report = {
                     kmStart: document.getElementById('report-km-start').value,
                     kmEnd: document.getElementById('report-km-end').value,
-                    work: document.getElementById('report-work').value.replace(/,/g, ';'), // CSV uyumluluğu için virgülleri değiştir
+                    work: document.getElementById('report-work').value.replace(/,/g, ';'), 
                     date: new Date().toLocaleString('tr-TR')
                 };
                 reports.push(report);
@@ -269,8 +267,6 @@
                 document.body.removeChild(link);
             }
 
-            // ... (Önceki versiyondaki tüm diğer fonksiyonlar)
-            // GPS, Aplikasyon, Hesaplama fonksiyonları
             function toggleGps() { if (gpsWatcherId) { navigator.geolocation.clearWatch(gpsWatcherId); gpsWatcherId = null; gpsButton.textContent = "Başlat"; gpsButton.style.backgroundColor = 'var(--success-color)'; } else { startGpsTracking(); } }
             function startGpsTracking() { if (!navigator.geolocation) { alert("GPS Desteklenmiyor"); return; } gpsButton.textContent = "Bağlanılıyor..."; gpsButton.disabled = true; gpsWatcherId = navigator.geolocation.watchPosition((p) => { gpsButton.textContent = "Durdur"; gpsButton.disabled = false; gpsButton.style.backgroundColor = 'var(--danger-color)'; const userLatLng = L.latLng(p.coords.latitude, p.coords.longitude); if (!userMarker) { userMarker = L.circleMarker(userLatLng, { radius: 8, color: 'blue', fillColor: '#3388ff', fillOpacity: 0.8 }).addTo(map); map.setView(userLatLng, 18); } else { userMarker.setLatLng(userLatLng); } if (isFollowing) map.panTo(userLatLng); updateCalculations(userLatLng); }, () => { alert("GPS sinyali alınamadı."); gpsButton.textContent = "Tekrar Dene"; gpsButton.disabled = false; }, { enableHighAccuracy: true }); }
             function updateCalculations(userLatLng) { try { const closest = findClosestPointOnPolyline_Robust(userLatLng, routePolyline); const currentKm = startStation + calculateDistanceAlongPolyline(closest, routePolyline); kilometreElement.textContent = `${(currentKm / 1000).toFixed(3)}`; ofsetElement.textContent = `${closest.direction} ${closest.offset.toFixed(1)}m`; if (connectionLine) map.removeLayer(connectionLine); connectionLine = L.polyline([userLatLng, closest.point], { color: 'black', weight: 2, dashArray: '5, 10' }).addTo(map); } catch (e) { kilometreElement.textContent = "Hata"; } }
