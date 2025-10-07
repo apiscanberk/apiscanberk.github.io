@@ -3,26 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Özmert Adana E5 Haritacılık (Stabil Sürüm)</title>
+    <title>Özmert Adana E5 Haritacılık (Gelişmiş)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen/dist/leaflet.fullscreen.css" />
     <style>
         :root {
             --brand-color: #0078d4; --success-color: #107c10; --danger-color: #d13438;
-            --light-grey: #f0f0f0; --white: #fff; --shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            --light-grey: #f0f0f0; --white: #fff; --shadow: 0 -2px 8px rgba(0,0,0,0.15);
         }
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
             overflow: hidden; 
         }
-        #app-container { display: flex; flex-direction: column; height: 100%; }
-        #map { flex-grow: 1; background: #e9e9e9; }
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 155px; /* Alt panelin yüksekliği kadar boşluk bırak */
+            background: #e9e9e9;
+            cursor: crosshair;
+        }
         #bottom-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 155px; /* Sabit yükseklik */
             background-color: var(--light-grey);
             box-shadow: var(--shadow);
             border-top: 1px solid #ccc;
-            flex-shrink: 0; /* Panelin küçülmesini engelle */
+            display: flex;
+            flex-direction: column;
         }
         #info-container {
             display: flex; justify-content: space-around;
@@ -42,6 +55,7 @@
         #controls-container {
             display: flex; align-items: stretch;
             padding: 10px; gap: 10px; border-top: 1px solid #ddd;
+            flex-shrink: 0;
         }
         .control-group { flex-grow: 1; display: flex; gap: 5px; }
         .control-input {
@@ -51,36 +65,51 @@
         #gpsButton, .control-button {
             padding: 0 20px; font-size: 1.1em; font-weight: bold; color: white;
             border: none; border-radius: 8px; cursor: pointer;
-            transition: background-color 0.3s;
         }
         #goToKmBtn { background-color: var(--brand-color); }
         #gpsButton { background-color: var(--success-color); }
         #gpsButton:disabled { background-color: #6c757d; cursor: not-allowed; }
+        
+        #crosshair-info {
+            position: absolute; top: 10px; left: 50%;
+            transform: translateX(-50%); background-color: rgba(43, 43, 43, 0.85);
+            color: white; padding: 8px 15px; border-radius: 8px;
+            font-size: 1em; font-weight: 600; z-index: 1001;
+            pointer-events: none; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        #follow-toggle {
+            position: absolute; bottom: 165px; right: 10px; z-index: 1000; 
+            background: var(--white); border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 50%; width: 40px; height: 40px; font-size: 1.8em;
+            cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex;
+            align-items: center; justify-content: center;
+        }
+        #follow-toggle.active { background-color: var(--brand-color); color: var(--white); }
     </style>
 </head>
 <body>
-    <div id="app-container">
-        <div id="map"></div>
-        <div id="bottom-panel">
-            <div id="info-container">
-                <div class="info-box">
-                    <div class="label">Kilometre</div>
-                    <span class="value" id="kilometre">--.--</span>
-                </div>
-                 <div class="info-box">
-                    <div class="label">Ofset</div>
-                    <span class="value" id="ofset">--.--</span>
-                </div>
+    <div id="map"></div>
+    <div id="crosshair-info"></div>
+    <div id="bottom-panel">
+        <div id="info-container">
+            <div class="info-box">
+                <div class="label">Kilometre</div>
+                <span class="value" id="kilometre">--.--</span>
             </div>
-            <div id="controls-container">
-                <div class="control-group">
-                    <input type="number" id="km-input" class="control-input" placeholder="KM'ye Git (Örn: 22.5)">
-                    <button id="goToKmBtn" class="control-button">Git</button>
-                </div>
-                <button id="gpsButton">Başlat</button>
+             <div class="info-box">
+                <div class="label">Ofset</div>
+                <span class="value" id="ofset">--.--</span>
             </div>
         </div>
+        <div id="controls-container">
+            <div class="control-group">
+                <input type="number" id="km-input" class="control-input" placeholder="KM'ye Git (Örn: 22.5)">
+                <button id="goToKmBtn" class="control-button">Git</button>
+            </div>
+            <button id="gpsButton" disabled>Yükleniyor...</button>
+        </div>
     </div>
+    <div id="follow-toggle" class="active" title="Otomatik Takip">🎯</div>
 
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.fullscreen/dist/Leaflet.fullscreen.min.js"></script>
@@ -91,7 +120,11 @@
             const map = L.map('map', { fullscreenControl: true, contextmenu: true }).setView([37.0, 35.3], 13);
             const kilometreElement = document.getElementById('kilometre'), ofsetElement = document.getElementById('ofset');
             const gpsButton = document.getElementById('gpsButton'), kmInput = document.getElementById('km-input'), goToKmBtn = document.getElementById('goToKmBtn');
-            let userMarker, routePolyline, startStation, manualMarker, gpsWatcherId;
+            const crosshairInfo = document.getElementById('crosshair-info');
+            const followToggle = document.getElementById('follow-toggle');
+            let userMarker, routePolyline, startStation, manualMarker, gpsWatcherId, crosshairLine;
+            let isAppReady = false; // Güvenlik kilidi
+            let isFollowing = true; // Otomatik takip durumu
 
             // HARİTA KATMANLARI
             const baseLayers = {
@@ -100,10 +133,8 @@
             };
             L.control.layers(baseLayers).addTo(map);
             
-            // PROJEKSİYON TANIMI
             proj4.defs("EPSG:5258", "+proj=tmerc +lat_0=0 +lon_0=36 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
 
-            // --- ANA BAŞLATMA FONKSİYONU ---
             async function initialize() {
                 try {
                     const response = await fetch('ADANA-CEYHAN_REV1.xml');
@@ -123,18 +154,23 @@
                     routePolyline = L.polyline(routePoints, { color: 'red', weight: 5 }).addTo(map);
                     map.fitBounds(routePolyline.getBounds());
                     
-                    // Olay dinleyicilerini ekle
                     gpsButton.addEventListener('click', toggleGps);
                     goToKmBtn.addEventListener('click', goToKm);
+                    followToggle.addEventListener('click', toggleFollow);
+                    map.on('mousemove', onMapMouseMove);
+                    map.on('mouseout', () => { crosshairInfo.style.display = 'none'; if(crosshairLine) map.removeLayer(crosshairLine); });
+
+                    isAppReady = true; 
+                    gpsButton.disabled = false;
+                    gpsButton.textContent = "Başlat";
                 } catch (error) {
                     alert(`Kritik Hata: ${error.message}`);
-                    gpsButton.disabled = true;
-                    goToKmBtn.disabled = true;
+                    gpsButton.textContent = "Hata!";
                 }
             }
 
-            // --- GPS FONKSİYONLARI ---
             function toggleGps() {
+                if (!isAppReady) return;
                 if (gpsWatcherId) {
                     navigator.geolocation.clearWatch(gpsWatcherId);
                     gpsWatcherId = null;
@@ -147,7 +183,8 @@
 
             function startGpsTracking() {
                 if (!navigator.geolocation) { alert("GPS Desteklenmiyor"); return; }
-                gpsButton.textContent = "Bağlanılıyor..."; gpsButton.disabled = true;
+                gpsButton.textContent = "Bağlanılıyor...";
+                gpsButton.disabled = true;
 
                 gpsWatcherId = navigator.geolocation.watchPosition(
                     (position) => {
@@ -162,26 +199,25 @@
                         } else {
                             userMarker.setLatLng(userLatLng);
                         }
-                        map.setView(userLatLng, 18);
+                        if (isFollowing) {
+                            map.setView(userLatLng, 18);
+                        }
                         updateCalculations(userLatLng);
                     }, 
                     (error) => {
                         alert("GPS sinyali alınamadı veya izin reddedildi.");
-                        toggleGps(); // GPS'i durdur
+                        toggleGps();
                     }, 
                     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
             }
 
-            // --- HESAPLAMA FONKSİYONLARI (EN SAĞLAM HALİ) ---
             function updateCalculations(userLatLng) {
-                kilometreElement.classList.remove('error');
-                
-                if (!routePolyline || !userLatLng) return;
+                if (!isAppReady || !routePolyline || !userLatLng) return;
 
+                kilometreElement.classList.remove('error');
                 const closest = findClosestPointOnPolyline(userLatLng, routePolyline);
                 
-                // Güvenlik kontrolü: Eğer en yakın nokta bulunamazsa, "Güzergah Dışı" yaz ve çık
                 if (!closest || closest.point === null || closest.segmentIndex < 0) {
                     kilometreElement.textContent = "Güzergah Dışı";
                     ofsetElement.textContent = "--.--";
@@ -191,7 +227,7 @@
 
                 const distance = calculateDistanceAlongPolyline(closest, routePolyline);
                 if (isNaN(distance)) {
-                    kilometreElement.textContent = "Hesaplama Hatası";
+                    kilometreElement.textContent = "Hesaplanamadı";
                     kilometreElement.classList.add('error');
                     return;
                 }
@@ -200,29 +236,49 @@
                 kilometreElement.textContent = `${(currentKm / 1000).toFixed(3)}`;
                 ofsetElement.textContent = `${closest.direction} ${closest.offset.toFixed(1)}m`;
             }
+
+            function onMapMouseMove(e) {
+                if (!isAppReady) return;
+                try {
+                    const closest = findClosestPointOnPolyline(e.latlng, routePolyline);
+                    if (!closest || closest.point === null) {
+                        crosshairInfo.style.display = 'none';
+                        if (crosshairLine) map.removeLayer(crosshairLine);
+                        return;
+                    }
+                    const km = startStation + calculateDistanceAlongPolyline(closest, routePolyline);
+                    
+                    crosshairInfo.style.display = 'block';
+                    crosshairInfo.innerHTML = `KM: ${(km / 1000).toFixed(3)} | Ofset: ${closest.direction} ${closest.offset.toFixed(1)}m`;
+                    
+                    if (crosshairLine) map.removeLayer(crosshairLine);
+                    crosshairLine = L.polyline([e.latlng, closest.point], { color: 'black', weight: 1, dashArray: '5, 5' }).addTo(map);
+                } catch(e) {/* Hata gösterme */}
+            }
             
+            function toggleFollow() {
+                isFollowing = !isFollowing;
+                followToggle.classList.toggle('active', isFollowing);
+            }
+
+            // Gerekli yardımcı fonksiyonlar...
             function findClosestPointOnPolyline(latlng, polyline) {
                 const latLngs = polyline.getLatLngs();
                 if (!latLngs || latLngs.length < 2) return { point: null, segmentIndex: -1 };
-
                 let minDistance = Infinity;
                 let closestResult = { point: null, segmentIndex: -1 };
-
                 for (let i = 0; i < latLngs.length - 1; i++) {
                     const p1 = latLngs[i], p2 = latLngs[i+1];
                     const dx = p2.lng - p1.lng, dy = p2.lat - p1.lat;
                     if (dx === 0 && dy === 0) continue;
-
                     const t = ((latlng.lng - p1.lng) * dx + (latlng.lat - p1.lat) * dy) / (dx * dx + dy * dy);
                     let closestPointOnSegment = (t < 0) ? p1 : (t > 1) ? p2 : L.latLng(p1.lat + t * dy, p1.lng + t * dx);
-                    
                     const dist = latlng.distanceTo(closestPointOnSegment);
                     if (dist < minDistance) {
                         minDistance = dist;
                         const crossProduct = (p2.lng - p1.lng) * (latlng.lat - p1.lat) - (p2.lat - p1.lat) * (latlng.lng - p1.lng);
                         closestResult = { 
-                            point: closestPointOnSegment, 
-                            segmentIndex: i, 
+                            point: closestPointOnSegment, segmentIndex: i, 
                             offset: minDistance, 
                             direction: Math.abs(crossProduct) < 1e-9 ? 'Üzerinde' : crossProduct > 0 ? 'Sağ' : 'Sol' 
                         };
@@ -233,7 +289,6 @@
 
             function calculateDistanceAlongPolyline({ point, segmentIndex }, polyline) {
                 if (!point || typeof segmentIndex !== 'number' || segmentIndex < 0) return NaN;
-                
                 let distance = 0;
                 const latLngs = polyline.getLatLngs();
                 for (let i = 0; i < segmentIndex; i++) {
@@ -243,14 +298,12 @@
                 return distance;
             }
 
-            // --- YARDIMCI FONKSİYONLAR ---
             function goToKm() {
+                if (!isAppReady) return;
                 const kmValue = parseFloat(kmInput.value);
                 if (isNaN(kmValue)) return;
                 const km = kmValue * 1000;
-                
                 if(manualMarker) map.removeLayer(manualMarker);
-                
                 let distance = 0;
                 const latLngs = routePolyline.getLatLngs();
                 for (let i = 0; i < latLngs.length - 1; i++) {
@@ -296,7 +349,6 @@
                 return p.map(pt => [pt[1], pt[0]]);
             }
             
-            // UYGULAMAYI BAŞLAT
             initialize();
         });
     </script>
